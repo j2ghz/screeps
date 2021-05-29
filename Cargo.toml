@@ -1,16 +1,17 @@
 [package]
-name = "screeps-starter-rust"
-version = "0.0.0"
-authors = []
+authors = ['J2ghz <j2.00ghz@gmail.com>']
 edition = "2018"
+license = 'AGPL-3.0'
+name = "screeps"
+version = "0.0.0"
 
 [dependencies]
-stdweb = "0.4"
-log = "0.4"
 fern = "0.6"
+log = "0.4"
 screeps-game-api = "0.9"
+stdweb = "0.4"
 
 [profile.release]
-panic = "abort"
-opt-level = "s"
 lto = true
+opt-level = "s"
+panic = "abort"
