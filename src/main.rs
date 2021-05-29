@@ -1,7 +1,7 @@
 use log::*;
 use screeps::{
-    find, prelude::*, CircleStyle, Creep, Part, Position, ResourceType, ReturnCode,
-    RoomObjectProperties, Terrain,
+    find, game::spawns, prelude::*, CircleStyle, Creep, MoveToOptions, Part, Position,
+    ResourceType, ReturnCode, RoomObjectProperties, Terrain,
 };
 use std::collections::HashSet;
 use stdweb::js;
@@ -9,7 +9,7 @@ use stdweb::js;
 mod logging;
 
 fn main() {
-    logging::setup_logging(logging::Trace);
+    logging::setup_logging(logging::Debug);
 
     js! {
         var game_loop = @{game_loop};
@@ -44,24 +44,24 @@ fn is_enterable(p: Position) -> bool {
 fn game_loop() {
     debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
 
-    for room in screeps::game::rooms::values() {
-        debug!("inspectiong {}", room.name());
+    // for room in screeps::game::rooms::values() {
+    //     debug!("inspectiong {}", room.name());
 
-        for exit in room.find(find::EXIT) {
-            debug!("exit at x:{} y:{}", exit.x(), exit.y());
-            if is_enterable(exit) {
-                room.visual().circle(
-                    clamp(exit.x(), 1, 48) as f32,
-                    clamp(exit.y(), 1, 48) as f32,
-                    Some(CircleStyle::default()),
-                )
-            }
-        }
-    }
+    //     for exit in room.find(find::EXIT) {
+    //         debug!("exit at x:{} y:{}", exit.x(), exit.y());
+    //         if is_enterable(exit) {
+    //             room.visual().circle(
+    //                 clamp(exit.x(), 1, 48) as f32,
+    //                 clamp(exit.y(), 1, 48) as f32,
+    //                 Some(CircleStyle::default()),
+    //             )
+    //         }
+    //     }
+    // }
 
-    debug!("running spawns");
+    trace!("running spawns");
     for spawn in screeps::game::spawns::values() {
-        debug!("running spawn {}", spawn.name());
+        trace!("running spawn {}", spawn.name());
         let body = [Part::Move, Part::Move, Part::Carry, Part::Work];
 
         if spawn.energy() >= body.iter().map(|p| p.cost()).sum() {
@@ -85,10 +85,10 @@ fn game_loop() {
         }
     }
 
-    debug!("running creeps");
+    trace!("running creeps");
     for creep in screeps::game::creeps::values() {
         let name = creep.name();
-        debug!("running creep {}", name);
+        trace!("running creep {}", name);
         if creep.spawning() {
             continue;
         }
@@ -108,15 +108,25 @@ fn game_loop() {
                 .room()
                 .expect("room is not visible to you")
                 .find(find::SOURCES)[0];
+            // let source = &creep
+            //     .pos()
+            //     .find_closest_by_range(find::SOURCES_ACTIVE)
+            //     .expect("couldn't find closest source");
             if creep.pos().is_near_to(source) {
-                let r = creep.harvest(source);
-                if r != ReturnCode::Ok {
-                    warn!("couldn't harvest: {:?}", r);
-                }
+                creep.harvest(source).ok_or_print_warn("couldn't harvest");
             } else {
                 goto(&creep, source);
             }
         } else {
+            // if let Some(s) = spawns::values().first() {
+            //     match creep.transfer_all(s, ResourceType::Energy) {
+            //         ReturnCode::Ok => {}
+            //         ReturnCode::NotInRange => {
+            //             goto(&creep, s);
+            //         }
+            //         x => info!("couldn't transfer energy: {:?}", x),
+            //     }
+            // } else
             if let Some(c) = creep
                 .room()
                 .expect("room is not visible to you")
@@ -156,11 +166,34 @@ fn clamp<T: std::cmp::PartialOrd>(val: T, min: T, max: T) -> T {
 }
 
 fn goto<T: RoomObjectProperties + HasPosition>(creep: &Creep, dest: &T) {
-    if let Some(room) = dest.room() {
-        room.visual()
-            .line(creep.pos().coords_f(), dest.pos().coords_f(), None)
+    match creep.move_to_with_options(
+        dest,
+        MoveToOptions::default().visualize_path_style(screeps::PolyStyle::default()),
+    ) {
+        ReturnCode::Ok => {}
+        ReturnCode::Tired => {}  // fine
+        ReturnCode::NoPath => {} // not fine, but idk
+        other => other.ok_or_print_debug("couldn't move"),
     }
-    creep.move_to(dest);
+}
+
+trait HandleReturnCode {
+    fn ok_or_print_debug(self, message: &str);
+    fn ok_or_print_warn(self, message: &str);
+}
+
+impl HandleReturnCode for ReturnCode {
+    fn ok_or_print_debug(self, message: &str) {
+        if self != ReturnCode::Ok {
+            debug!("{}: {:?}", message, self);
+        }
+    }
+
+    fn ok_or_print_warn(self, message: &str) {
+        if self != ReturnCode::Ok {
+            warn!("{}: {:?}", message, self);
+        }
+    }
 }
 
 trait HasCoordinatesF {
