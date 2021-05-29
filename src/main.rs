@@ -1,13 +1,14 @@
-use std::collections::HashSet;
-
 use log::*;
-use screeps::{find, prelude::*, Part, ResourceType, ReturnCode, RoomObjectProperties};
+use screeps::{
+    find, prelude::*, Creep, Part, Position, ResourceType, ReturnCode, RoomObjectProperties,
+};
+use std::collections::HashSet;
 use stdweb::js;
 
 mod logging;
 
 fn main() {
-    logging::setup_logging(logging::Info);
+    logging::setup_logging(logging::Trace);
 
     js! {
         var game_loop = @{game_loop};
@@ -33,6 +34,10 @@ fn main() {
 
 fn game_loop() {
     debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
+
+    for room in screeps::game::rooms::values() {
+        debug!("inspectiong {}", room.name())
+    }
 
     debug!("running spawns");
     for spawn in screeps::game::spawns::values() {
@@ -89,7 +94,7 @@ fn game_loop() {
                     warn!("couldn't harvest: {:?}", r);
                 }
             } else {
-                creep.move_to(source);
+                goto(&creep, source);
             }
         } else {
             if let Some(c) = creep
@@ -99,7 +104,7 @@ fn game_loop() {
             {
                 let r = creep.upgrade_controller(&c);
                 if r == ReturnCode::NotInRange {
-                    creep.move_to(&c);
+                    goto(&creep, &c);
                 } else if r != ReturnCode::Ok {
                     warn!("couldn't upgrade: {:?}", r);
                 }
@@ -117,6 +122,25 @@ fn game_loop() {
     }
 
     info!("done! cpu: {}", screeps::game::cpu::get_used())
+}
+
+fn goto<T: RoomObjectProperties + HasPosition>(creep: &Creep, dest: &T) {
+    if let Some(room) = dest.room() {
+        room.visual()
+            .line(creep.pos().coords_f(), dest.pos().coords_f(), None)
+    }
+    creep.move_to(dest);
+}
+
+trait HasCoordinatesF {
+    fn coords_f(&self) -> (f32, f32);
+}
+
+impl HasCoordinatesF for Position {
+    fn coords_f(&self) -> (f32, f32) {
+        let (x, y) = self.coords();
+        (x as f32, y as f32)
+    }
 }
 
 fn cleanup_memory() -> Result<(), Box<dyn std::error::Error>> {
