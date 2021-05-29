@@ -1,6 +1,7 @@
 use log::*;
 use screeps::{
-    find, prelude::*, Creep, Part, Position, ResourceType, ReturnCode, RoomObjectProperties,
+    find, prelude::*, CircleStyle, Creep, Part, Position, ResourceType, ReturnCode,
+    RoomObjectProperties, Terrain,
 };
 use std::collections::HashSet;
 use stdweb::js;
@@ -32,11 +33,30 @@ fn main() {
     }
 }
 
+fn is_enterable(p: Position) -> bool {
+    !p.look().iter().any(|look_result| match look_result {
+        screeps::LookResult::Structure(_) => true,
+        screeps::LookResult::Terrain(Terrain::Wall) => true,
+        _ => false,
+    })
+}
+
 fn game_loop() {
     debug!("loop starting! CPU: {}", screeps::game::cpu::get_used());
 
     for room in screeps::game::rooms::values() {
-        debug!("inspectiong {}", room.name())
+        debug!("inspectiong {}", room.name());
+
+        for exit in room.find(find::EXIT) {
+            debug!("exit at x:{} y:{}", exit.x(), exit.y());
+            if is_enterable(exit) {
+                room.visual().circle(
+                    clamp(exit.x(), 1, 48) as f32,
+                    clamp(exit.y(), 1, 48) as f32,
+                    Some(CircleStyle::default()),
+                )
+            }
+        }
     }
 
     debug!("running spawns");
@@ -122,6 +142,17 @@ fn game_loop() {
     }
 
     info!("done! cpu: {}", screeps::game::cpu::get_used())
+}
+
+fn clamp<T: std::cmp::PartialOrd>(val: T, min: T, max: T) -> T {
+    assert!(min <= max);
+    if val < min {
+        min
+    } else if val > max {
+        max
+    } else {
+        val
+    }
 }
 
 fn goto<T: RoomObjectProperties + HasPosition>(creep: &Creep, dest: &T) {
