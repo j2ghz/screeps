@@ -24,7 +24,7 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@v1.0.3
         with:
           command: test
           args: --all-features --no-fail-fast
